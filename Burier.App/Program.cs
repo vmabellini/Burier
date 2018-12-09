@@ -29,7 +29,7 @@ namespace Burier.App
             };
             _optionSet.Parse(args);
 
-            stenographer = new Stenographer(imagePath);
+            stenographer = new Stenographer(imagePath, Console.Out);
             if (!stenographer.Readable())
             {
                 Console.WriteLine("Error: image format not readable");
@@ -62,7 +62,6 @@ namespace Burier.App
                         throw new ApplicationException("Error: missing secretDataPath parameter");
 
                     secretDataBytes = File.ReadAllBytes(secretDataPath);
-                    Console.WriteLine($"Hiding {secretDataBytes.Count()} bytes...");
                     var outputBitmap = stenographer.HideData(secretDataBytes);
 
                     outputBitmap.Save(outputPath);

@@ -2,6 +2,7 @@
 using System.Collections;
 using System.Collections.Generic;
 using System.Drawing;
+using System.IO;
 using System.Linq;
 using System.Text;
 
@@ -9,11 +10,17 @@ namespace Burier.App
 {
     public class Stenographer
     {
-        private readonly string _filePath;
+        public const int USELESS_BITS = 48;
+        public const int EOF_BITS = 16;
 
-        public Stenographer(string filePath)
+        private readonly string _filePath;
+        private readonly TextWriter _output;
+
+        public Stenographer(string filePath,
+            TextWriter output)
         {
             _filePath = filePath;
+            _output = output;
         }
 
         public int BitCapacity()
@@ -23,7 +30,9 @@ namespace Burier.App
 
             using (var image = new Bitmap(Image.FromFile(_filePath)))
             {
-                return (image.Width * image.Height) / 8;
+                var bitSize = (image.Width * image.Height) / 8;
+                bitSize -= USELESS_BITS; //Remove the useless bits
+                return bitSize;
             }
         }
 
@@ -36,8 +45,9 @@ namespace Burier.App
                     return true;
                 }
             }
-            catch
+            catch (Exception ex)
             {
+                _output.WriteLine(ex.Message);
                 return false;
             }
         }
@@ -51,13 +61,22 @@ namespace Burier.App
             if (content.Length > capacity)
                 throw new ApplicationException("File is too big to hide on this image.");
 
+            int size = content.Length;
+            byte[] sizeToBytes = BitConverter.GetBytes(size);
+            var package = new List<byte>();
+            package.AddRange(sizeToBytes);
+            package.AddRange(content);
 
-            var bitsToWrite = new BitArray(content);
+            var bitsToWrite = new BitArray(package.ToArray());
             int bitIndex = 0;
+
+            _output.WriteLine($"Hiding {content.Length * 8} bits...");
 
             var output = new Bitmap(Image.FromFile(_filePath));
 
             int R = 0, G = 0, B = 0;
+
+            _output.WriteLine($"Cleaning up {output.Height * output.Width} pixels...");
 
             //Loop all pixels
             for (int y = 0; y < output.Height; y++)
@@ -76,9 +95,13 @@ namespace Burier.App
                 }
             }
 
+            _output.WriteLine($"Writing data...");
+
             //Loop again but write the data on the clean pixels
             for (int y = 0; y < output.Height; y++)
             {
+                if (bitIndex >= bitsToWrite.Count)
+                    break;
                 for (int x = 0; x < output.Width; x++)
                 {
                     if (bitIndex >= bitsToWrite.Count)
@@ -112,9 +135,11 @@ namespace Burier.App
         {
             var bitList = new List<bool>();
             var ended = false;
-
+            
             for (int y = 0; y < bitmap.Height; y++)
             {
+                if (ended) break;
+
                 for (int x = 0; x < bitmap.Width; x++)
                 {
                     if (ended) break;
@@ -128,27 +153,25 @@ namespace Burier.App
                     bitList.Add(bit1);
                     bitList.Add(bit2);
                     bitList.Add(bit3);
-
-                    //Check if there's a sequence of 8 false bits - end
-                    if (bitList.Count % 8 == 0 && bitList.Count > 8)
-                    {
-                        var subset = bitList.GetRange(bitList.Count - 8, 8);
-                        if (subset.All(item => item == false))
-                            ended = true;
-                    }
                 }
             }
 
-            //Remove the last 8 false bits
-            bitList = bitList.GetRange(0, bitList.Count - 8);
+            var sizeByteArray = new BitArray(bitList.GetRange(0, 32).ToArray());
+            var outputSizeBytes = new byte[4];
+            sizeByteArray.CopyTo(outputSizeBytes, 0);
+            var outputSize = BitConverter.ToInt32(outputSizeBytes);
+            
+            Console.WriteLine($"Output size: {outputSize * 8} bits");
+            
+            bitList = bitList.GetRange(32, outputSize * 8);
 
-            var bitArray = new BitArray(bitList.ToArray());
+            var outputArray = new BitArray(bitList.ToArray());
 
-            if (bitArray.Count % 8 != 0)
-                throw new ApplicationException($"Invalid number of bits: {bitArray.Count}.");
+            if (outputArray.Count % 8 != 0)
+                throw new ApplicationException($"Invalid number of bits: {outputArray.Count}.");
 
-            var bytes = new byte[bitArray.Count / 8];
-            bitArray.CopyTo(bytes, 0);
+            var bytes = new byte[outputArray.Count / 8];
+            outputArray.CopyTo(bytes, 0);
 
             return bytes;
         }
