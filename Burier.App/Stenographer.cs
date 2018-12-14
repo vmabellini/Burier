@@ -13,13 +13,13 @@ namespace Burier.App
         public const int USELESS_BITS = 48;
         public const int EOF_BITS = 16;
 
-        private readonly string _filePath;
+        private readonly Stream _contentStream;
         private readonly TextWriter _output;
 
-        public Stenographer(string filePath,
+        public Stenographer(Stream contentStream,
             TextWriter output)
         {
-            _filePath = filePath;
+            _contentStream = contentStream;
             _output = output;
         }
 
@@ -28,7 +28,7 @@ namespace Burier.App
             if (!Readable())
                 return 0;
 
-            using (var image = new Bitmap(Image.FromFile(_filePath)))
+            using (var image = new Bitmap(Image.FromStream(_contentStream)))
             {
                 var bitSize = (image.Width * image.Height) / 8;
                 bitSize -= USELESS_BITS; //Remove the useless bits
@@ -40,7 +40,7 @@ namespace Burier.App
         {
             try
             {
-                using (var image = new Bitmap(Image.FromFile(_filePath)))
+                using (var image = new Bitmap(Image.FromStream(_contentStream)))
                 {
                     return true;
                 }
@@ -72,29 +72,10 @@ namespace Burier.App
 
             _output.WriteLine($"Hiding {content.Length * 8} bits...");
 
-            var output = new Bitmap(Image.FromFile(_filePath));
+            var output = new Bitmap(Image.FromStream(_contentStream));
 
             int R = 0, G = 0, B = 0;
-
-            _output.WriteLine($"Cleaning up {output.Height * output.Width} pixels...");
-
-            //Loop all pixels
-            for (int y = 0; y < output.Height; y++)
-            {
-                for (int x = 0; x < output.Width; x++)
-                {
-                    Color pixel = output.GetPixel(x, y);
-
-                    //Remove the least significant byte value
-                    R = pixel.R - pixel.R % 2;
-                    G = pixel.G - pixel.G % 2;
-                    B = pixel.B - pixel.B % 2;
-
-                    //Clear all
-                    output.SetPixel(x, y, Color.FromArgb(R, G, B));
-                }
-            }
-
+            
             _output.WriteLine($"Writing data...");
 
             //Loop again but write the data on the clean pixels
@@ -120,9 +101,15 @@ namespace Burier.App
                         bitIndex++;
                     }
 
-                    R = pixel.R + Convert.ToByte(next3bits[0]);
-                    G = pixel.G + Convert.ToByte(next3bits[1]);
-                    B = pixel.B + Convert.ToByte(next3bits[2]);
+                    //Remove the least significant bit value
+                    R = pixel.R - pixel.R % 2;
+                    G = pixel.G - pixel.G % 2;
+                    B = pixel.B - pixel.B % 2;
+
+                    //Apply the actual data
+                    R = R + Convert.ToByte(next3bits[0]);
+                    G = G + Convert.ToByte(next3bits[1]);
+                    B = B + Convert.ToByte(next3bits[2]);
 
                     output.SetPixel(x, y, Color.FromArgb(R, G, B));
                 }
