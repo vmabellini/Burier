@@ -1,6 +1,7 @@
 ﻿using System;
 using System.Collections.Generic;
 using System.Drawing;
+using System.Drawing.Imaging;
 using System.IO;
 using System.Text;
 
@@ -53,8 +54,8 @@ namespace Burier.App.Features
                 Stenographer stenographer = new Stenographer(fileStream, Console.Out);
                 outputBitmap = stenographer.HideData(secretDataString, _secretKey);
             }
-
-            outputBitmap.Save(_outputPath);
+            
+            outputBitmap.Save(_outputPath, ImageFormat.Png);
 
             Console.WriteLine($"Corpse buried at {_outputPath}! Take care!");
         }

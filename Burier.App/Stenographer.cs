@@ -94,7 +94,6 @@ namespace Burier.App
             _output.WriteLine($"Hiding {contentToWrite.Length * 8} bits...");
 
             var output = new Bitmap(Image.FromStream(_contentStream));
-
             int R = 0, G = 0, B = 0;
             
             _output.WriteLine($"Writing data...");
