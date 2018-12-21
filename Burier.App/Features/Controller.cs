@@ -1,7 +1,6 @@
 ﻿using Mono.Options;
 using System;
 using System.IO;
-using System.Linq;
 
 namespace Burier.App.Features
 {
@@ -12,6 +11,7 @@ namespace Burier.App.Features
         string _imagePath = null;
         string _outputPath = null;
         string _secretDataPath = null;
+        string _secretKey = null;
         Mode _mode = Mode.Read;
         bool _ultraSecret = false;
         bool _help = false;
@@ -24,6 +24,7 @@ namespace Burier.App.Features
                 { "read", "Read the buried data from a file", x => _mode = Mode.Read },
                 { "write", "Bury secret data to a file", x => _mode = Mode.Write },
                 { "info", "Provides information about the image file", x => _mode = Mode.Info },
+                { "secretkey=", "Secret key to encrypt/decrypt content", x => _secretKey = x },
                 { "ultra-secret", "Ultra-secret mode! No IO! Hide and restore UTF-8 texts!", x => _ultraSecret = true },
                 { "imagepath=", "File path of the image to read", x => _imagePath = x },
                 { "datapath=", "Path of the secret data to bury", x => _secretDataPath = x },
@@ -37,7 +38,7 @@ namespace Burier.App.Features
         {
             if (_help)
             {
-                _optionSet.WriteOptionDescriptions(Console.Error);
+                _optionSet.WriteOptionDescriptions(Console.Out);
                 return;
             }
 
@@ -55,10 +56,10 @@ namespace Burier.App.Features
             switch (_mode)
             {
                 case Mode.Read:
-                    command = new Read(_imagePath, _outputPath, _ultraSecret);
+                    command = new Read(_imagePath, _outputPath, _secretKey, _ultraSecret);
                     break;
                 case Mode.Write:
-                    command = new Write(_imagePath, _outputPath, _secretDataPath, _ultraSecret);
+                    command = new Write(_imagePath, _outputPath, _secretDataPath, _secretKey, _ultraSecret);
                     break;
                 case Mode.Info:
                     break;

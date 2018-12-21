@@ -52,25 +52,46 @@ namespace Burier.App
             }
         }
 
-        public Bitmap HideData(byte[] content)
+        public Bitmap HideData(string content, string secretKey)
         {
             if (!Readable())
                 throw new ApplicationException("Unable to read from this image.");
 
-            var capacity = BitCapacity();
-            if (content.Length > capacity)
-                throw new ApplicationException("File is too big to hide on this image.");
+            string inputKey = null;
+            var contentToWrite = Encoding.UTF8.GetBytes(content);
+            if (!string.IsNullOrEmpty(secretKey))
+            {
+                //Starts a new rjindael input key
+                inputKey = Guid.NewGuid().ToString().Replace("-", "");
+                
+                var encryptedString = RjindaelHelper.EncryptRijndael(content, secretKey, inputKey);
+                contentToWrite = Convert.FromBase64String(encryptedString);
+            }
 
-            int size = content.Length;
+            var capacity = BitCapacity();
+            int size = contentToWrite.Length;
             byte[] sizeToBytes = BitConverter.GetBytes(size);
+            var contentSize = contentToWrite.Length + (sizeToBytes.Length * 8);
+
+            if (!string.IsNullOrEmpty(secretKey))
+                contentSize = contentSize + 256;
+
+            if (contentSize > capacity)
+                throw new ApplicationException("Content is too big to hide on this image.");
+
             var package = new List<byte>();
             package.AddRange(sizeToBytes);
-            package.AddRange(content);
+            if (inputKey != null)
+            {
+                var inputKeyToASCIIBytes = Encoding.ASCII.GetBytes(inputKey);
+                package.AddRange(inputKeyToASCIIBytes);
+            }
+            package.AddRange(contentToWrite);
 
             var bitsToWrite = new BitArray(package.ToArray());
             int bitIndex = 0;
 
-            _output.WriteLine($"Hiding {content.Length * 8} bits...");
+            _output.WriteLine($"Hiding {contentToWrite.Length * 8} bits...");
 
             var output = new Bitmap(Image.FromStream(_contentStream));
 
@@ -118,7 +139,7 @@ namespace Burier.App
             return output;
         }
 
-        public static byte[] ReadData(Bitmap bitmap)
+        public static string ReadData(Bitmap bitmap, string secretKey)
         {
             var bitList = new List<bool>();
             var ended = false;
@@ -143,14 +164,25 @@ namespace Burier.App
                 }
             }
 
-            var sizeByteArray = new BitArray(bitList.GetRange(0, 32).ToArray());
+            var startIndex = 32;
+            var sizeBitArray = new BitArray(bitList.GetRange(0, 32).ToArray());
             var outputSizeBytes = new byte[4];
-            sizeByteArray.CopyTo(outputSizeBytes, 0);
+            sizeBitArray.CopyTo(outputSizeBytes, 0);
             var outputSize = BitConverter.ToInt32(outputSizeBytes);
             
             Console.WriteLine($"Output size: {outputSize * 8} bits");
+
+            string inputKey = null;
+            if (!string.IsNullOrEmpty(secretKey))
+            {
+                startIndex = startIndex + 256;
+                var inputKeyBitArray = new BitArray(bitList.GetRange(32, 256).ToArray());
+                var outputSizeInputKeyBytes = new byte[32];
+                inputKeyBitArray.CopyTo(outputSizeInputKeyBytes, 0);
+                inputKey = Encoding.ASCII.GetString(outputSizeInputKeyBytes).Trim();
+            }
             
-            bitList = bitList.GetRange(32, outputSize * 8);
+            bitList = bitList.GetRange(startIndex, (outputSize * 8));
 
             var outputArray = new BitArray(bitList.ToArray());
 
@@ -159,8 +191,20 @@ namespace Burier.App
 
             var bytes = new byte[outputArray.Count / 8];
             outputArray.CopyTo(bytes, 0);
+            
+            string outputString = null;
+            if (inputKey != null)
+            {
+                outputString = Convert.ToBase64String(bytes);
+                outputString = RjindaelHelper.DecryptRijndael(outputString, secretKey, inputKey);
+            }
+            else
+            {
+                outputString = Encoding.UTF8.GetString(bytes);
+            }
 
-            return bytes;
+            return outputString;
         }
+
     }
 }

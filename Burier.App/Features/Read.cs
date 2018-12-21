@@ -10,40 +10,40 @@ namespace Burier.App.Features
     {
         private readonly string _imagePath;
         private readonly string _outputPath;
-        private readonly bool _ultraSecret;
+        private readonly string _secretKey;
+        private readonly bool _ultraSecretMode;
 
         public Read(string imagePath,
             string outputPath,
-            bool ultraSecret)
+            string secretKey,
+            bool ultraSecretMode)
         {
             _imagePath = imagePath;
             _outputPath = outputPath;
-            _ultraSecret = ultraSecret;
+            _secretKey = secretKey;
+            _ultraSecretMode = ultraSecretMode;
         }
 
         public void Execute()
         {
-            byte[] outputBytes = null;
+            string outputString = null;
             using (var image = new Bitmap(Image.FromFile(_imagePath)))
             {
-                outputBytes = Stenographer.ReadData(image);
+                outputString = Stenographer.ReadData(image, _secretKey);
             }
 
-            if (!_ultraSecret)
+            if (!_ultraSecretMode)
             {
                 if (string.IsNullOrEmpty(_outputPath))
                     throw new ApplicationException("Error: missing outputpath parameter");
 
-                using (FileStream fileStream = new FileStream(_outputPath, FileMode.Create))
-                {
-                    fileStream.Write(outputBytes, 0, outputBytes.Length);
-                }
+                File.WriteAllText(_outputPath, outputString);
                 Console.WriteLine("Corpse unburied! Be careful!");
             }
+            else
             {
-                var ultraSecretOutput = Encoding.UTF8.GetString(outputBytes);
                 Console.WriteLine("---BEGIN---");
-                Console.WriteLine(ultraSecretOutput);
+                Console.WriteLine(outputString);
                 Console.WriteLine("----END----");
                 Console.WriteLine();
                 Console.ReadKey();
